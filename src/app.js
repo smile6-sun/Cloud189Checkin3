@@ -23,23 +23,29 @@ const wxpush = require("./push/wxPusher");
 const accounts = require("../accounts");
 const families = require("../families");
 const execThreshold = process.env.EXEC_THRESHOLD || 1;
+const accountPerson = process.env.ACCOUNT_PERSON || accounts.length; //个人签到账户数
+
 
 const mask = (s, start, end) => s.split("").fill("*", start, end).join("");
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // 任务 1.签到
-const doUserTask = async (cloudClient) => {
-  const tasks = Array.from({ length: execThreshold }, () =>
-    cloudClient.userSign()
-  );
-  const result = (await Promise.all(tasks)).map(
-    (res) =>
-      `个人任务${res.isSign ? "已经签到过了，" : ""}签到获得${
-        res.netdiskBonus
-      }M空间`
-  );
-  return result;
+const doUserTask = async (cloudClient,index) => {
+	if(index < accountPerson){
+		const tasks = Array.from({ length: execThreshold }, () =>
+			cloudClient.userSign()
+			);
+		const result = (await Promise.all(tasks)).map(
+			(res) =>
+			`个人任务${res.isSign ? "已经签到过了，" : ""}签到获得${
+					res.netdiskBonus
+			}M空间`
+			);
+		return result;
+	}else{
+		return "";
+	}
 };
 
 const doFamilyTask = async (cloudClient) => {
@@ -196,7 +202,7 @@ const push = (title, desp) => {
 };
 
 // 开始执行程序
-async function main() {
+async function main() {	
   //用于统计实际容量变化
   const userSizeInfoMap = new Map();
   for (let index = 0; index < accounts.length; index += 1) {
@@ -213,8 +219,11 @@ async function main() {
           cloudClient,
           userSizeInfo: beforeUserSizeInfo,
         });
-        const result = await doUserTask(cloudClient);
-        result.forEach((r) => logger.log(r));
+		const result = await doUserTask(cloudClient,index);
+		if(result){
+			result.forEach((r) => logger.log(r));
+		}
+		
         const familyResult = await doFamilyTask(cloudClient);
         familyResult.forEach((r) => logger.log(r));
       } catch (e) {
