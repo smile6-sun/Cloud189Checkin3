@@ -42,6 +42,7 @@ const doUserTask = async (cloudClient,index) => {
 					res.netdiskBonus
 			}M`
 			);
+			await delay(5000);
 		return result;
 	}else{
 		return "";
@@ -223,6 +224,7 @@ async function main() {
 		const result = await doUserTask(cloudClient,index);
 		if(result){
 			result.forEach((r) => logger.log(r));
+			logger.log("---------------------------");
 		}
 		
         const familyResult = await doFamilyTask(cloudClient);
@@ -234,6 +236,7 @@ async function main() {
         }
       } finally {
         logger.log(` `);
+		await delay((Math.random() * 1000) + 2000); // 随机等待2到3秒
       }
     }
   }
