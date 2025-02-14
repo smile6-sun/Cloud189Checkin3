@@ -23,7 +23,7 @@ const wxpush = require("./push/wxPusher");
 const accounts = require("../accounts");
 const families = require("../families");
 const execThreshold = process.env.EXEC_THRESHOLD || 1;
-const accountPerson = process.env.ACCOUNT_PERSON || 1; //主账号个数
+const accountPerson = process.env.ACCOUNT_PERSON || accounts.length; //主账号个数
 
 
 const mask = (s, start, end) => s.split("").fill("*", start, end).join("");
@@ -33,19 +33,22 @@ const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 // 任务 1.签到
 const doUserTask = async (cloudClient,index) => {
 	if(index < accountPerson){
-		const result = [];
-		const res1 = await cloudClient.userSign();
-		result.push(
-				'个人'+`${res1.isSign ? "无效" : ""}签到: ${res1.netdiskBonus}M`
-	);
-		; // 延迟5秒
+		const tasks = Array.from({ length: execThreshold }, () =>
+			cloudClient.userSign()
+			);
+		const result = (await Promise.all(tasks)).map(
+			(res) =>
+			`个人${res.isSign ? "已签到过" : ""}获得: ${
+					res.netdiskBonus
+			}M`
+			);
 		return result;
-	}else{		
+	}else{
 		return "";
 	}
 };
 
-const doFamilyTask = async (cloudClient,index) => {
+const doFamilyTask = async (cloudClient) => {
   const { familyInfoResp } = await cloudClient.getFamilyList();
   if (familyInfoResp) {
     let familyId = null;
@@ -66,22 +69,16 @@ const doFamilyTask = async (cloudClient,index) => {
     } else {
       familyId = familyInfoResp[0].familyId;
     }
-
-	if(index < accountPerson ){
-		const res = await cloudClient.familyUserSign(familyId);
-		return res.signStatus ? undefined : [res.bonusSpace] ;
-	}else{
-		const tasks = Array.from({ length: execThreshold }, () =>
-		cloudClient.familyUserSign(familyId)
-		);
-		// 等待所有任务完成，并过滤出尚未签到的家庭用户
-		const results = (await Promise.all(tasks)).filter(res => !res.signStatus);
-            
-		return  results.length === 0 ? 
-				undefined : results.map((res) => res.bonusSpace);
-		
-	}
-		
+    const tasks = Array.from({ length: execThreshold }, () =>
+      cloudClient.familyUserSign(familyId)
+    );
+    const result = (await Promise.all(tasks)).map(
+      (res) =>
+        `家庭${res.signStatus ? "已签到过" : ""}获得: ${
+          res.bonusSpace
+        }M`
+    );
+    return result;
   }
   return [];
 };
@@ -215,7 +212,7 @@ async function main() {
     if (userName && password) {
       const userNameInfo = mask(userName, 3, 7);
       try {
-        logger.log(`${index+1}. 账户 ${userNameInfo}开始执行`);
+        logger.log(`账户 ${userNameInfo}开始执行`);
         const cloudClient = new CloudClient(userName, password);
         await cloudClient.login();
         const beforeUserSizeInfo = await cloudClient.getUserSizeInfo();
@@ -228,13 +225,8 @@ async function main() {
 			result.forEach((r) => logger.log(r));
 		}
 		
-        const familyResult = await doFamilyTask(cloudClient,index);
-		const signedMessage = familyResult?.length > 0 
-			? `家庭有效签到${familyResult.length}次：${familyResult.join(' ')}  (M)`
-			: '家庭重复无效签到';
-
-			logger.log(signedMessage);
-        
+        const familyResult = await doFamilyTask(cloudClient);
+        familyResult.forEach((r) => logger.log(r));
       } catch (e) {
         logger.error(e);
         if (e.code === "ETIMEDOUT") {
@@ -242,12 +234,11 @@ async function main() {
         }
       } finally {
         logger.log(` `);
-		await delay((Math.random() * 1000) + 2000); // 随机等待2到3秒
       }
     }
   }
 	
-  
+	
 
   //数据汇总
   for (const [userName, { cloudClient, userSizeInfo }] of userSizeInfoMap) {
@@ -268,7 +259,7 @@ async function main() {
       ).toFixed(2)}M`
     );
   }
-	logger.log(' ');
+  logger.log(' ');
   
   //主账号家庭详情
 	for (const [userName, { cloudClient, userSizeInfo }] of userSizeInfoMap){
@@ -311,14 +302,13 @@ async function main() {
 			1024
 		).toFixed(2)}M`
 		);
-		
 		 mainAccountCount++;
 	   }else{
 			break;
 	   }
 	}
-	
 }
+
 function getLineIndex(str, lineIndex) {
   // 参数校验
   if (typeof str !== 'string' || !Number.isInteger(lineIndex)) {
