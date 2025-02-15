@@ -70,6 +70,7 @@ const doFamilyTask = async (cloudClient) => {
     } else {
       familyId = familyInfoResp[0].familyId;
     }
+	  await delay((Math.random() * 1000) + 2000); // 随机等待2到3秒
     const tasks = Array.from({ length: execThreshold }, () =>
       cloudClient.familyUserSign(familyId)
     );
@@ -236,7 +237,7 @@ async function main() {
         }
       } finally {
         logger.log(` `);
-		await delay((Math.random() * 1000) + 2000); // 随机等待2到3秒
+		
       }
     }
   }
