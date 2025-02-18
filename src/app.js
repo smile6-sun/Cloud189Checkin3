@@ -74,13 +74,9 @@ const doFamilyTask = async (cloudClient) => {
     const tasks = Array.from({ length: execThreshold }, () =>
       cloudClient.familyUserSign(familyId)
     );
-    const result = (await Promise.all(tasks)).map(
-      (res) =>
-        `家庭${res.signStatus ? "已签到过" : ""}获得: ${
-          res.bonusSpace
-        }M`
-    );
-    return result;
+    const results = (await Promise.all(tasks)).filter(res => !res.signStatus);
+    return results.length === 0 ? 
+				undefined : results.map((res) => res.bonusSpace);
   }
   return [];
 };
@@ -229,7 +225,11 @@ async function main() {
 		}
 		
         const familyResult = await doFamilyTask(cloudClient);
-        familyResult.forEach((r) => logger.log(r));
+        const signedMessage = familyResult?.length > 0 
+			? `家庭有效签到${familyResult.length}次(M)：${familyResult.join(' ')}  `
+			: '家庭重复无效签到';
+
+			logger.log(signedMessage);
       } catch (e) {
         logger.error(e);
         if (e.code === "ETIMEDOUT") {
@@ -271,7 +271,7 @@ async function main() {
 	        const userNameInfo = mask(userName, 3, 7);
 			const afterUserSizeInfo = await cloudClient.getUserSizeInfo();
 			logger.log(`账户 ${userNameInfo}:`);
-			logger.log(`昨天 个人：${ (
+			logger.log(`前 个人：${ (
 			(userSizeInfo.cloudCapacityInfo.totalSize) /
 			1024 /
 			1024 /
@@ -282,7 +282,7 @@ async function main() {
 			1024 /
 			1024
 		).toFixed(3)}G`);
-		logger.log(`今天 个人：${(
+		logger.log(`后 个人：${(
 			(afterUserSizeInfo.cloudCapacityInfo.totalSize) /
 			1024 /
 			1024 /
