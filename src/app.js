@@ -75,7 +75,7 @@ const run = async (userName, password, userSizeInfoMap, logger, index) => {
     const before = Date.now();
 	const userNameInfo = mask(userName, 3, 7);
     try {
-      logger.log(`${userNameInfo}开始执行`);
+      logger.log(`${index+1}. 账号${userNameInfo}`);
       let token = null
       if(cacheToken) {
         token = new FileTokenStore(`${tokenDir}/${userName}.json`)
@@ -107,7 +107,7 @@ const run = async (userName, password, userSizeInfoMap, logger, index) => {
       }
     } finally {
       logger.log(
-        `执行完毕, 耗时 ${((Date.now() - before) / 1000).toFixed(2)} 秒`
+        `耗时 ${((Date.now() - before) / 1000).toFixed(2)} 秒`
       );
 	  logger.log(' ');
 	 await delay((Math.random() * 3000) + 5000); // 随机等待5到8秒
@@ -128,7 +128,7 @@ async function main() {
     const account = accounts[index];
     const { userName, password } = account;
 	const logger = log4js.getLogger(userName);
-	 logger.addContext("user", index+1 ); 
+	 logger.addContext("user", "" ); 
     await run(userName, password, userSizeInfoMap, logger, index);
 	 
   }
@@ -138,7 +138,7 @@ async function main() {
 	   if(mainAccountCount < mainAccount){
 		   const userNameInfo = mask(userName, 3, 7);
 			const afterUserSizeInfo = await cloudClient.getUserSizeInfo();
-			logger.log(` ${userNameInfo}:`);
+			logger.log(`账号 ${userNameInfo}:`);
 			logger.log(`前 个人：${ (
 				(userSizeInfo.cloudCapacityInfo.totalSize) /
 				1024 /
@@ -208,7 +208,7 @@ function getLineIndex(str, lineIndex) {
     const events = recording.replay();
     const content = events.map((e) => `${e.data.join("")}`).join("  \n");
 	const lineCount = logs.split('\n').length;
-    push(` ${getLineIndex(logs,lineCount - 6).slice(11, 15)}天翼${getLineIndex(logs, lineCount - 3).slice(-9)}`, logs + content);
+    push(` ${getLineIndex(logs,lineCount - 6).slice(10, 14)}天翼${getLineIndex(logs, lineCount - 3).slice(-9)}`, logs + content);
     recording.erase();
     cleanLogs();
   }
