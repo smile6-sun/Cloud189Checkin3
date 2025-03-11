@@ -23,7 +23,7 @@ log4js.configure({
       compress: true,
       layout: {
         type: "pattern",
-        pattern: "[账号：%X{user}] %m",
+        pattern: "%X{user}: %m",
       },
     },
   },
