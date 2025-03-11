@@ -23,7 +23,7 @@ const doUserTask = async (cloudClient, logger, index) => {
 		);
 		const result = (await Promise.all(tasks)).filter((res) => !res.isSign);
 		logger.info(
-			`个人 成功数/总请求数 ${result.length}/${tasks.length} 获得(M): ${
+			`个人  ${result.length}/${tasks.length} 获得(M): ${
 			result.map((res) => res.netdiskBonus)?.join(" ") || "0"
 			}`
 		);
@@ -63,7 +63,7 @@ const doFamilyTask = async (cloudClient, logger, index) => {
 				.filter(Boolean) // 过滤内部捕获的null
 				.filter(res => 'signStatus' in res && !res.signStatus); // 安全属性检查
     return logger.info(
-      `家庭 成功数/总请求数 ${validResults.length}/${tasks.length} 获得(M): ${
+      `家庭  ${validResults.length}/${tasks.length} 获得(M): ${
         validResults.map((res) => res.bonusSpace)?.join(" ") || "0"
       }`
     );
