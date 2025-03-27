@@ -1,165 +1,81 @@
-require("dotenv").config();
-const fs = require("fs");
-const { CloudClient, FileTokenStore } = require("cloud189-sdk");
-const recording = require("log4js/lib/appenders/recording");
-const accounts = require("../accounts");
-const families = require("../families");
-const { mask, delay } = require("./utils");
-const push = require("./push");
-const { log4js, cleanLogs, catLogs } = require("./logger");
-const execThreshold = process.env.EXEC_THRESHOLD || 1;
-const tokenDir = ".token";
+name: Cloud check95 in action
+on:
+  push:
+    branches:
+      - main
+  watch:
+    types: started
+  workflow_dispatch:
+  schedule:
+    - cron: 20 21 * * *
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    environment: user95
+    steps:
+      - name: 🔀 random delay 0-300 seconds
+        run: sleep $((RANDOM % 301))
 
-// 个人任务签到
-const doUserTask = async (cloudClient, logger) => {
-  const tasks = Array.from({ length: execThreshold }, () =>
-    cloudClient.userSign()
-  );
-  const result = (await Promise.allSettled(tasks)).filter(
-    ({ status, value }) => status === "fulfilled" && !value.isSign
-  );
-  logger.info(
-    `个人签到任务: 成功数/总请求数 ${result.length}/${tasks.length} 获得 ${
-      result.map(({ value }) => value.netdiskBonus)?.join(",") || "0"
-    }M 空间`
-  );
-};
+      - name: 🔌 Check out code
+        uses: actions/checkout@main
 
-// 家庭任务签到
-const doFamilyTask = async (cloudClient, logger) => {
-  const { familyInfoResp } = await cloudClient.getFamilyList();
-  if (familyInfoResp) {
-    let familyId = null;
-    //指定家庭签到
-    if (families.length > 0) {
-      const tagetFamily = familyInfoResp.find((familyInfo) =>
-        families.includes(familyInfo.remarkName)
-      );
-      if (tagetFamily) {
-        familyId = tagetFamily.familyId;
-      } else {
-        logger.error(
-          `没有加入到指定家庭分组${families
-            .map((family) => mask(family, 3, 7))
-            .toString()}`
-        );
-      }
-    } else {
-      familyId = familyInfoResp[0].familyId;
-    }
-    logger.info(`执行家庭签到ID:${familyId}`);
-    const tasks = Array.from({ length: execThreshold }, () =>
-      cloudClient.familyUserSign(familyId)
-    );
-    const result = (await Promise.allSettled(tasks)).filter(
-      ({ status, value }) => status === "fulfilled" && !value.signStatus
-    );
-    return logger.info(
-      `家庭签到任务: 成功数/总请求数 ${result.length}/${tasks.length} 获得 ${
-        result.map(({ value }) => value.bonusSpace)?.join(",") || "0"
-      }M 空间`
-    );
-  }
-};
+      - name: 🔨 Setup Node.js environment
+        uses: actions/setup-node@main
+        with:
+          node-version: 18
+          cache: npm
 
-const run = async (userName, password, userSizeInfoMap, logger) => {
-  if (userName && password) {
-    const before = Date.now();
-    try {
-      logger.log("开始执行");
-      const cloudClient = new CloudClient({
-        username: userName,
-        password,
-        token: new FileTokenStore(`${tokenDir}/${userName}.json`),
-      });
-      const beforeUserSizeInfo = await cloudClient.getUserSizeInfo();
-      userSizeInfoMap.set(userName, {
-        cloudClient,
-        userSizeInfo: beforeUserSizeInfo,
-        logger,
-      });
-      await Promise.all([
-        doUserTask(cloudClient, logger),
-        doFamilyTask(cloudClient, logger),
-      ]);
-    } catch (e) {
-      if (e.response) {
-        logger.log(`请求失败: ${e.response.statusCode}, ${e.response.body}`);
-      } else {
-        logger.error(e);
-      }
-      if (e.code === "ECONNRESET" || e.code === "ETIMEDOUT") {
-        logger.error("请求超时");
-        throw e;
-      }
-    } finally {
-      logger.log(
-        `执行完毕, 耗时 ${((Date.now() - before) / 1000).toFixed(2)} 秒`
-      );
-    }
-  }
-};
+      - name: 👾 Check if Debug is true
+        if: vars.debug == '1'
+        run: |
+          echo "CLOUD189_VERBOSE=1" >> $GITHUB_ENV
+      
+      - name: 📹 Restore cached Cookie
+        id: cache-cookie-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: .token
+          key: ${{ runner.os }}-cache-token
+          restore-keys: ${{ runner.os }}-cache-token-
 
-// 开始执行程序
-async function main() {
-  if (!fs.existsSync(tokenDir)) {
-    fs.mkdirSync(tokenDir);
-  }
-  //  用于统计实际容量变化
-  const userSizeInfoMap = new Map();
-  for (let index = 0; index < accounts.length; index++) {
-    const account = accounts[index];
-    const { userName, password } = account;
-    const userNameInfo = mask(userName, 3, 7);
-    const logger = log4js.getLogger(userName);
-    logger.addContext("user", userNameInfo);
-    await run(userName, password, userSizeInfoMap, logger);
-  }
+      - name: 🔧 Init secrets
+        uses: shine1594/secrets-to-env-action@master
+        with:
+          secrets: ${{ toJSON(secrets) }}
+          secrets_env: production
+          prefix_prod: ""
+          file_name_prod: .env
 
-  //数据汇总
-  for (const [
-    userName,
-    { cloudClient, userSizeInfo, logger },
-  ] of userSizeInfoMap) {
-    const afterUserSizeInfo = await cloudClient.getUserSizeInfo();
-    logger.log(
-      `个人容量：⬆️  ${(
-        (afterUserSizeInfo.cloudCapacityInfo.totalSize -
-          userSizeInfo.cloudCapacityInfo.totalSize) /
-        1024 /
-        1024
-      ).toFixed(2)}M/${(
-        afterUserSizeInfo.cloudCapacityInfo.totalSize /
-        1024 /
-        1024 /
-        1024
-      ).toFixed(2)}G`,
-      `家庭容量：⬆️  ${(
-        (afterUserSizeInfo.familyCapacityInfo.totalSize -
-          userSizeInfo.familyCapacityInfo.totalSize) /
-        1024 /
-        1024
-      ).toFixed(2)}M/${(
-        afterUserSizeInfo.familyCapacityInfo.totalSize /
-        1024 /
-        1024 /
-        1024
-      ).toFixed(2)}G`
-    );
-  }
-}
+      - name: 📡 Init dependencies
+        run: npm install
 
-(async () => {
-  try {
-    await main();
-    //等待日志文件写入
-    await delay(1000);
-  } finally {
-    const logs = catLogs();
-    const events = recording.replay();
-    const content = events.map((e) => `${e.data.join("")}`).join("  \n");
-    push("天翼云盘自动签到任务", logs + content);
-    recording.erase();
-    cleanLogs();
-  }
-})();
+      - name: 🚀 Run
+        uses: nick-fields/retry@master
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          command: npm start
+      
+      - name: 📹 Save cached Cookie
+        uses: actions/cache/save@v4
+        with:
+          path: .token
+          key: ${{ runner.os }}-cache-token-${{ hashFiles('.token/*.json') }}
+
+      - name: 🚗 Keep Running
+        if: github.event_name == 'schedule'
+        run: |
+          git config --local user.email "${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com"
+          git config --local user.name "${{ github.actor }}"
+          git remote set-url origin https://${{ github.actor }}:${{ github.token }}@github.com/${{ github.repository }}
+          git pull --rebase --autostash
+          git commit --allow-empty -m "Keep Running..."
+          git push
+
+      - name: 🎉 Delete old workflow run
+        uses: Mattraks/delete-workflow-runs@main
+        with:
+          token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          retain_days: 0
+          keep_minimum_runs: 50
