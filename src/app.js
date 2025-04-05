@@ -87,31 +87,45 @@ const run = async (userName, password, userSizeInfoMap, acquireFamilyTotalSize,e
   if (userName && password) {
     const before = Date.now();
 	const userNameInfo = mask(userName, 3, 7);
+	 if(isMainAccount && accountIndex == 1){
+			firstUserName = userNameInfo;
+		}
     try {
-       console.log(`${accountIndex}. 账号 ${userNameInfo}`);
+       logger.log(`${accountIndex}. 账号 ${userNameInfo}`);
       const cloudClient =  new CloudClient({
         username: userName,
         password,
         token: new FileTokenStore(`${tokenDir}/${userName}.json`),
       });
-     const beforeUserSizeInfo = await cloudClient.getUserSizeInfo();
-      userSizeInfoMap.set(userName, {
-        cloudClient,
-        userSizeInfo: beforeUserSizeInfo
-      });
-	   if(isMainAccount && accountIndex == 1){
-			firstUserName = userName;
-		}
+    // const beforeUserSizeInfo = await cloudClient.getUserSizeInfo();
+    //  userSizeInfoMap.set(userName, {
+    //    cloudClient,
+    //    userSizeInfo: beforeUserSizeInfo
+    //  });
       
-       await doUserTask(cloudClient);
-       await doFamilyTask(cloudClient,acquireFamilyTotalSize,errorMessages,userNameInfo);
-		
+       //await doUserTask(cloudClient);
+       //await doFamilyTask(cloudClient,acquireFamilyTotalSize,errorMessages,userNameInfo);
+		const userSizeInfo = await cloudClient.getUserSizeInfo();
+		logger.log(
+      `个人容量：⬆️  ${(
+        (userSizeInfo.cloudCapacityInfo.totalSize) /
+        1024 /
+        1024 /
+		1024
+      ).toFixed(2)}G`,
+      `家庭容量：⬆️  ${(
+        ( userSizeInfo.familyCapacityInfo.totalSize) /
+        1024 /
+        1024 /
+		1024
+      ).toFixed(2)}G`
+    );
 		
       
     } catch (e) {
-      console.log(e);
+      logger.log(e);
       if (e.code === "ECONNRESET" || e.code === "ETIMEDOUT") {
-        logger.error(`${accountIndex}. 账号 ${userNameInfo}请求超时`);
+        console.log(`${accountIndex}. 账号 ${userNameInfo}请求超时`);
         throw e;
       }else{
 		
@@ -122,10 +136,10 @@ const run = async (userName, password, userSizeInfoMap, acquireFamilyTotalSize,e
 	  }
 	  
     } finally {
-     console.log(
+     logger.log(
         `耗时 ${((Date.now() - before) / 1000).toFixed(2)} 秒`
       );
-	  console.log(' ');
+	  logger.log(' ');
 	 await delay((Math.random() * 3000) + 1000); // 随机等待1到3秒
     }
   }
@@ -155,66 +169,7 @@ async function main() {
   }
   accountIndex--;
  
-  //主账号详情
-  for (const [userName,{ cloudClient,userSizeInfo }] of userSizeInfoMap) {
-	   if(isMainAccount){
-		   const userNameInfo = mask(userName, 3, 7);
-			const afterUserSizeInfo = await cloudClient.getUserSizeInfo();
-			logger.log(`账号 ${userNameInfo}:`);
-			logger.log(`前 个人：${ (
-				(userSizeInfo.cloudCapacityInfo.totalSize) /
-				1024 /
-				1024 /
-				1024
-			).toFixed(3)}G, 家庭：${(
-				( userSizeInfo.familyCapacityInfo.totalSize) /
-				1024 /
-				1024 /
-				1024
-			).toFixed(3)}G`);
-			logger.log(`后 个人：${(
-				(afterUserSizeInfo.cloudCapacityInfo.totalSize) /
-				1024 /
-				1024 /
-				1024
-			).toFixed(3)}G, 家庭：${(
-				(afterUserSizeInfo.familyCapacityInfo.totalSize) /
-				1024 /
-				1024 /
-				1024
-			).toFixed(3)}G`);
-			logger.log(
-			`个人 +${(
-			(afterUserSizeInfo.cloudCapacityInfo.totalSize -
-			userSizeInfo.cloudCapacityInfo.totalSize) /
-			1024 /
-			1024
-			).toFixed(0)}M  家庭 +${(
-			(afterUserSizeInfo.familyCapacityInfo.totalSize -
-			userSizeInfo.familyCapacityInfo.totalSize) /
-			1024 /
-			1024
-			).toFixed(0)}M  签到 ${acquireFamilyTotalSize.length}/${accountIndex} 次`
-			);
-			logger.log(' ');
-			break;
-	 }else{
-		 const sumFamilyTotalSize = acquireFamilyTotalSize.reduce((accumulator, currentValue) => {
-				return accumulator + currentValue;
-			}, 0);
-		 logger.log(
-		`家庭容量 +${
-		sumFamilyTotalSize}M  签到 ${acquireFamilyTotalSize.length}/${accountIndex}次   `
-		);
-		 logger.log(
-		`家庭获得 ${
-		acquireFamilyTotalSize?.length > 0? acquireFamilyTotalSize.join(" + "): "0"} = ${sumFamilyTotalSize}M     `
-		);
-		logger.log(' ');
-		break;
-	 }
-  }
-  
+ 
   // 错误信息输出
   if (errorMessages.length > 0) {
     originalLog(' ');
@@ -233,13 +188,7 @@ async function main() {
     const logs = catLogs();
     const events = recording.replay();
     const content = events.map((e) => `${e.data.join("")}`).join("  \n");
-
-	const userNameInfo = isMainAccount? mask(firstUserName, 3, 7).slice(9, 12):" ";
-	const target = ["家庭容量"].includes(logs) ? "家庭容量": "M  家庭";
-	const targetIndex = logs.indexOf(target);
-	const startIndex = targetIndex + target.length;
-	const contentDel = logs.substring(startIndex, startIndex + 15);
-    push(`${userNameInfo}家庭${contentDel}`, logs + content);
+    push("天翼云盘账号查询结果", logs + content);
     recording.erase();
     cleanLogs();
   }
