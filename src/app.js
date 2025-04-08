@@ -105,6 +105,14 @@ const run = async (userName, password, userSizeInfoMap, acquireFamilyTotalSize,e
       
        //await doUserTask(cloudClient);
        //await doFamilyTask(cloudClient,acquireFamilyTotalSize,errorMessages,userNameInfo);
+	   const { familyInfoResp } = await cloudClient.getFamilyList();
+		logger.log(`有${familyInfoResp.length}个家庭：`);
+	   if (familyInfoResp){
+	    for(let i = 0; i < familyInfoResp.length ; i++ ){
+			logger.log(`familyId: ${familyInfoResp[i].familyId}`);			
+		}
+	   }
+	   
 		const userSizeInfo = await cloudClient.getUserSizeInfo();
 		logger.log(
       `个人容量：⬆️  ${(
@@ -173,7 +181,7 @@ async function main() {
   // 错误信息输出
   if (errorMessages.length > 0) {
     originalLog(' ');
-    originalLog('错误信息'+errorMessages.length+'个: ');
+    originalLog('错误信息:');
     errorMessages.forEach(msg => originalLog(msg));
   }
   
