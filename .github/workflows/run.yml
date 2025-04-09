@@ -1,19 +1,13 @@
 name: Cloud check in action
+
 on:
-##  push:
- ##   branches:
-##      - main
-##  watch:
-##    types: started
   workflow_dispatch:
-##  schedule:
-##    - cron: 35 2 * * *
+
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     environment: usercheck
     steps:
-     
       - name: 🔌 Check out code
         uses: actions/checkout@main
 
@@ -27,7 +21,14 @@ jobs:
         if: vars.debug == '1'
         run: |
           echo "CLOUD189_VERBOSE=1" >> $GITHUB_ENV
-  
+
+      - name: 📹 Restore cached Cookie
+        id: cache-cookie-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: .token
+          key: ${{ runner.os }}-cache-token
+          restore-keys: ${{ runner.os }}-cache-token-
 
       - name: 🔧 Init secrets
         uses: shine1594/secrets-to-env-action@master
@@ -46,7 +47,12 @@ jobs:
           timeout_minutes: 30
           max_attempts: 3
           command: npm start
-      
+
+      - name: 🗑️ Delete token cache after execution
+        run: |
+          rm -rf .token || true
+        shell: bash
+
       - name: 🚗 Keep Running
         if: github.event_name == 'schedule'
         run: |
